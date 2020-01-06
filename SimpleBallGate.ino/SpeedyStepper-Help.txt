@@ -1,0 +1,593 @@
+
+//      ******************************************************************
+//      *                                                                *
+//      *                          SpeedStepper                          *
+//      *                                                                *
+//      *                   Speedy Stepper Motor Driver                  *
+//      *                                                                *
+//      *            Stan Reifel                     12/8/2014           *
+//      *               Copyright (c) S. Reifel & Co, 2014               *
+//      *                                                                *
+//      ******************************************************************
+
+//
+// This driver is used to control one or more stepper motors and requires stepper 
+// interface boards that have a Step and Direction interface.  The motors are 
+// accelerated and decelerated as they travel to the final position.
+//
+// A limitation of this driver is that once a motion starts, you can NOT change the 
+// target position, speed or rate of acceleration until the motion has completed.  
+// The only exception to this is that you can issue a "Stop" at any point in time,
+// which will cause the motor to decelerate until stopped.
+//
+// Because this library doesn't allow making changes while moving, it can generate
+// a faster step rate than a driver that support changing the target position or
+// speed while in motion.
+//
+// This library can generate a maximum of about 12,500 steps per second using an 
+// Arduino Uno.  Assuming a system driving only one motor at a time, in full step 
+// mode, with a 200 steps per rotation motor, the maximum speed is about 62 RPS 
+// or 3750 RPM (most stepper motor can not go this fast).  Driving one motor in 
+// half step mode, a maximum speed of 31 RPS or 1875 RPM can be reached.  In 
+// quarter step mode about 15 RPS or 937 RPM.  Running multiple motors at the same
+// time will reduce the maximum speed.  For example running two motors will reduce
+// the step rate by half or more.
+//
+// This stepper motor driver is based on Aryeh Elderman's paper "Real Time Stepper  
+// Motor Linear Ramping Just By Addition and Multiplication".  See: 
+//                          www.hwml.com/LeibRamp.pdf
+//
+// It has advantages and disadvantages over David Austin's method.  The advantage 
+// is that it is faster, meaning you can generate more steps/second.  The 
+// disadvantageis that the speed ramping while accelerating and decelerating is 
+// less linear.  This is likely to only be a problem when coordinating multiple 
+// axis that all need to start and finish motions precisely at the same time.
+//
+// Usage:
+//    Near the top of the program, add:
+//        include "SpeedyStepper.h"
+//
+//    For each stepper, delcare a global object outside of all functions as follows:
+//        SpeedyStepper stepper1;
+//        SpeedyStepper stepper2;
+//
+//    In Setup(), assign a stepper port number: 1 or 2 on the Multi Interface Board
+//        stepper1.connectToPort(1);
+//        stepper2.connectToPort(2);
+//
+//    Notes: 
+//        * With no microstepping, 200 steps per revolution
+//        * With 2X microstepping, 400 steps per revolution
+//        * With 4X microstepping, 800 steps per revolution
+//        * With 8X microstepping, 1600 steps per revolution
+//        * Steppers with lead screws have 25 steps per millimeter with no microstepping
+//
+//    Move one motor in units of steps:
+//        //
+//        // set the speed in steps/second and acceleration in steps/second/second
+//        //
+//        stepper1.setSpeedInStepsPerSecond(100);
+//        stepper1.setAccelerationInStepsPerSecondPerSecond(100);
+//
+//        //
+//        // move 200 steps in the backward direction
+//        //
+//        stepper1.moveRelativeInSteps(-200);
+//
+//        //
+//        // move to an absolute position of 200 steps
+//        //
+//        stepper1.moveToPositionInSteps(200);
+//
+//    Move one motor in units of revolutions:
+//        //
+//        // set the number of steps per revolutions, 200 with no microstepping, 800 with 4x microstepping
+//        //
+//        stepper1.setStepsPerRevolution(200);
+//
+//        //
+//        // set the speed in rotations/second and acceleration in rotations/second/second
+//        //
+//        stepper1.setSpeedInRevolutionsPerSecond(1);
+//        stepper1.setAccelerationInRevolutionsPerSecondPerSecond(1);
+//
+//        //
+//        // move backward 1.5 revolutions
+//        //
+//        stepper1.moveRelativeInRevolutions(-1.5);
+//
+//        //
+//        // move to an absolute position of 3.75 revolutions
+//        //
+//        stepper1.moveToPositionInRevolutions(3.75);
+//
+//    Move one motor in units of millimeters:
+//        //
+//        // set the number of steps per millimeter
+//        //
+//        stepper1.setStepsPerMillimeter(25);
+//
+//        //
+//        // set the speed in millimeters/second and acceleration in millimeters/second/second
+//        //
+//        stepper1.setSpeedInMillimetersPerSecond(20);
+//        stepper1.setAccelerationInMillimetersPerSecondPerSecond(20);
+//
+//        //
+//        // move backward 15.5 millimeters
+//        //
+//        stepper1.moveRelativeInMillimeters(-15.5);
+//
+//        //
+//        // move to an absolute position of 125 millimeters
+//        //
+//        stepper1.moveToPositionInMillimeters(125);
+//
+//    Move two motors in units of revolutions:
+//        //
+//        // set the number of steps per revolutions, 200 with no microstepping, 800 with 4x microstepping
+//        //
+//        stepper1.setStepsPerRevolution(200);
+//        stepper2.setStepsPerRevolution(200);
+//
+//        //
+//        // set the speed in rotations/second and acceleration in rotations/second/second
+//        //
+//        stepper1.setSpeedInRevolutionsPerSecond(1);
+//        stepper1.setAccelerationInRevolutionsPerSecondPerSecond(1);
+//        stepper2.setSpeedInRevolutionsPerSecond(1);
+//        stepper2.setAccelerationInRevolutionsPerSecondPerSecond(1);
+//
+//        //
+//        // setup motor 1 to move backward 1.5 revolutions, this step does not actually move the motor
+//        //
+//        stepper1.setupRelativeMoveInRevolutions(-1.5);
+//
+//        //
+//        // setup motor 2 to move forward 3.0 revolutions, this step does not actually move the motor
+//        //
+//        stepper2.setupRelativeMoveInRevolutions(3.0);
+//
+//        //
+//        // execute the moves
+//        //
+//        while((!stepper1.motionComplete()) || (!stepper2.motionComplete()))
+//        {
+//          stepper1.processMovement();
+//          stepper2.processMovement();
+//        }
+//
+
+
+//
+// constructor for the stepper class
+//
+SpeedyStepper::SpeedyStepper()
+
+
+
+//
+// connect the stepper object to port number
+//  Enter:  stepperMotorNumber = stepper motor number for the DPEA Arduino Board
+//
+void SpeedyStepper::connectToPort(byte stepperMotorNumber)
+
+
+
+//
+// connect the stepper object to the IO pins
+//  Enter:  stepPinNumber = IO pin number for the Step
+//          directionPinNumber = IO pin number for the direction bit
+//          enablePinNumber = IO pin number for the enable bit (LOW is enabled)
+//            set to 0 if enable is not supported
+//
+void SpeedyStepper::connectToPins(byte stepPinNumber, byte directionPinNumber, byte enablePinNumber)
+
+
+
+// ---------------------------------------------------------------------------------
+//                     Public functions with units in millimeters 
+// ---------------------------------------------------------------------------------
+
+
+//
+// set the number of steps the motor has per millimeter
+//
+void SpeedyStepper::setStepsPerMillimeter(float motorStepPerMillimeter)
+
+
+
+//
+// get the current position of the motor in millimeter, this functions is updated
+// while the motor moves
+//  Exit:  a signed motor position in millimeter returned
+//
+float SpeedyStepper::getCurrentPositionInMillimeters()
+
+
+
+
+//
+// set the current position of the motor in millimeter, this does not move the motor
+//
+void SpeedyStepper::setCurrentPositionInMillimeters(float currentPositionInMillimeter)
+
+
+
+
+//
+// set the maximum speed, units in millimeters/second, this is the maximum speed reached 
+// while accelerating
+// Note: this can only be called when the motor is stopped
+//  Enter:  speedInMillimetersPerSecond = speed to accelerate up to, units in millimeters/second
+//
+void SpeedyStepper::setSpeedInMillimetersPerSecond(float speedInMillimetersPerSecond)
+
+
+
+
+//
+// set the rate of acceleration, units in millimeters/second/second
+// Note: this can only be called when the motor is stopped
+//  Enter:  accelerationInMillimetersPerSecondPerSecond = rate of acceleration, units in 
+//          millimeters/second/second
+//
+void SpeedyStepper::setAccelerationInMillimetersPerSecondPerSecond(float accelerationInMillimetersPerSecondPerSecond)
+
+
+
+//
+// home the motor by moving until the homing sensor is activated, then set the position to zero, 
+// with units in millimeters
+//  Enter:  directionTowardHome = 1 to move in a positive direction, -1 to move in a negative directions 
+//          speedInMillimetersPerSecond = speed to accelerate up to while moving toward home, units in millimeters/second
+//          maxDistanceToMoveInMillimeters = unsigned maximum distance to move toward home before giving up
+//          homeSwitchPin = pin number of the home switch, switch should be configured to go low when at home
+//  Exit:   true returned if successful, else false
+//
+bool SpeedyStepper::moveToHomeInMillimeters(long directionTowardHome, float speedInMillimetersPerSecond, 
+  float maxDistanceToMoveInMillimeters, int homeLimitSwitchPin)
+
+
+
+//
+// move relative to the current position, units are in millimeters, this function does 
+// not return until the move is complete
+//  Enter:  distanceToMoveInMillimeters = signed distance to move relative to the  
+//          current position in millimeters
+//
+void SpeedyStepper::moveRelativeInMillimeters(float distanceToMoveInMillimeters)
+
+
+
+
+//
+// setup a move relative to the current position, units are in millimeters, no motion  
+// occurs until processMove() is called
+// Note: this can only be called when the motor is stopped
+//  Enter:  distanceToMoveInMillimeters = signed distance to move relative to the current 
+//          position in millimeters
+//
+void SpeedyStepper::setupRelativeMoveInMillimeters(float distanceToMoveInMillimeters)
+
+
+
+
+//
+// move to the given absolute position, units are in millimeters, this function does not return
+// until the move is complete
+//  Enter:  absolutePositionToMoveToInMillimeters = signed absolute position to move to 
+//          in units of millimeters
+//
+void SpeedyStepper::moveToPositionInMillimeters(float absolutePositionToMoveToInMillimeters)
+
+
+
+
+//
+// setup a move, units are in millimeters, no motion occurs until processMove() is called
+// Note: this can only be called when the motor is stopped
+//  Enter:  absolutePositionToMoveToInMillimeters = signed absolute position to move to in 
+//          units of millimeters
+//
+void SpeedyStepper::setupMoveInMillimeters(float absolutePositionToMoveToInMillimeters)
+
+
+
+
+//
+// Get the current velocity of the motor in millimeters/second.  This functions is 
+// updated while it accelerates up and down in speed.  This is not the desired speed, 
+// but the speed the motor should be moving at the time the function is called.  This  
+// is a signed value and is negative when the motor is moving backwards.
+// Note: This speed will be incorrect if the desired velocity is set faster than
+// this library can generate steps, or if the load on the motor is too great for
+// the amount of torque that it can generate.
+//  Exit:  velocity speed in millimeters per second returned, signed
+//
+float SpeedyStepper::getCurrentVelocityInMillimetersPerSecond()
+
+
+
+
+// ---------------------------------------------------------------------------------
+//                     Public functions with units in revolutions 
+// ---------------------------------------------------------------------------------
+
+
+//
+// set the number of steps the motor has per revolution
+//
+void SpeedyStepper::setStepsPerRevolution(float motorStepPerRevolution)
+
+
+
+
+//
+// get the current position of the motor in revolutions, this functions is updated
+// while the motor moves
+//  Exit:  a signed motor position in revolutions returned
+//
+float SpeedyStepper::getCurrentPositionInRevolutions()
+
+
+
+
+//
+// set the current position of the motor in revolutions, this does not move the motor
+//
+void SpeedyStepper::setCurrentPositionInRevolutions(float currentPositionInRevolutions)
+
+
+
+
+//
+// set the maximum speed, units in revolutions/second, this is the maximum speed reached 
+// while accelerating
+// Note: this can only be called when the motor is stopped
+//  Enter:  speedInRevolutionsPerSecond = speed to accelerate up to, units in revolutions/second
+//
+void SpeedyStepper::setSpeedInRevolutionsPerSecond(float speedInRevolutionsPerSecond)
+
+
+
+
+//
+// set the rate of acceleration, units in revolutions/second/second
+// Note: this can only be called when the motor is stopped
+//  Enter:  accelerationInRevolutionsPerSecondPerSecond = rate of acceleration, units in 
+//          revolutions/second/second
+//
+void SpeedyStepper::setAccelerationInRevolutionsPerSecondPerSecond(float accelerationInRevolutionsPerSecondPerSecond)
+
+
+
+//
+// home the motor by moving until the homing sensor is activated, then set the position to zero, 
+// with units in revolutions
+//  Enter:  directionTowardHome = 1 to move in a positive direction, -1 to move in a negative directions 
+//          speedInRevolutionsPerSecond = speed to accelerate up to while moving toward home, units in revolutions/second
+//          maxDistanceToMoveInRevolutions = unsigned maximum distance to move toward home before giving up
+//          homeSwitchPin = pin number of the home switch, switch should be configured to go low when at home
+//  Exit:   true returned if successful, else false
+//
+bool SpeedyStepper::moveToHomeInRevolutions(long directionTowardHome, float speedInRevolutionsPerSecond, 
+  float maxDistanceToMoveInRevolutions, int homeLimitSwitchPin)
+
+
+
+
+//
+// move relative to the current position, units are in revolutions, this function does 
+// not return until the move is complete
+//  Enter:  distanceToMoveInRevolutions = signed distance to move relative to the  
+//          current position in revolutions
+//
+void SpeedyStepper::moveRelativeInRevolutions(float distanceToMoveInRevolutions)
+
+
+
+
+//
+// setup a move relative to the current position, units are in revolutions, no motion  
+// occurs until processMove() is called
+// Note: this can only be called when the motor is stopped
+//  Enter:  distanceToMoveInRevolutions = signed distance to move relative to the current 
+//          position in revolutions
+//
+void SpeedyStepper::setupRelativeMoveInRevolutions(float distanceToMoveInRevolutions)
+
+
+
+
+//
+// move to the given absolute position, units are in revolutions, this function does not return
+// until the move is complete
+//  Enter:  absolutePositionToMoveToInRevolutions = signed absolute position to move to 
+//          in units of revolutions
+//
+void SpeedyStepper::moveToPositionInRevolutions(float absolutePositionToMoveToInRevolutions)
+
+
+
+
+//
+// setup a move, units are in revolutions, no motion occurs until processMove() is called
+// Note: this can only be called when the motor is stopped
+//  Enter:  absolutePositionToMoveToInRevolutions = signed absolute position to move to in 
+//          units of revolutions
+//
+void SpeedyStepper::setupMoveInRevolutions(float absolutePositionToMoveToInRevolutions)
+
+
+
+
+//
+// Get the current velocity of the motor in revolutions/second.  This functions is 
+// updated while it accelerates up and down in speed.  This is not the desired speed, 
+// but the speed the motor should be moving at the time the function is called.  This  
+// is a signed value and is negative when the motor is moving backwards.
+// Note: This speed will be incorrect if the desired velocity is set faster than
+// this library can generate steps, or if the load on the motor is too great for
+// the amount of torque that it can generate.
+//  Exit:  velocity speed in revolutions per second returned, signed
+//
+float SpeedyStepper::getCurrentVelocityInRevolutionsPerSecond()
+
+
+
+
+// ---------------------------------------------------------------------------------
+//                        Public functions with units in steps 
+// ---------------------------------------------------------------------------------
+
+
+//
+// enable the stepper motor
+//
+void SpeedyStepper::enableStepper(void)
+
+
+
+
+//
+// disable the stepper motor
+//
+void SpeedyStepper::disableStepper(void)
+
+
+
+
+//
+// set the current position of the motor in steps, this does not move the motor
+// Note: This function should only be called when the motor is stopped
+//    Enter:  currentPositionInSteps = the new position of the motor in steps
+//
+void SpeedyStepper::setCurrentPositionInSteps(long currentPositionInSteps)
+
+
+
+
+//
+// get the current position of the motor in steps, this functions is updated
+// while the motor moves
+//  Exit:  a signed motor position in steps returned
+//
+long SpeedyStepper::getCurrentPositionInSteps()
+
+
+
+
+//
+// setup a "Stop" to begin the process of decelerating from the current velocity to zero, 
+// decelerating requires calls to processMove() until the move is complete
+// Note: This function can be used to stop a motion initiated in units of steps or revolutions
+//
+void SpeedyStepper::setupStop()
+
+
+
+
+//
+// set the maximum speed, units in steps/second, this is the maximum speed reached while 
+// accelerating
+// Note: this can only be called when the motor is stopped
+//  Enter:  speedInStepsPerSecond = speed to accelerate up to, units in steps/second
+//
+void SpeedyStepper::setSpeedInStepsPerSecond(float speedInStepsPerSecond)
+
+
+
+
+//
+// set the rate of acceleration, units in steps/second/second
+// Note: this can only be called when the motor is stopped
+//  Enter:  accelerationInStepsPerSecondPerSecond = rate of acceleration, units in 
+//          steps/second/second
+//
+void SpeedyStepper::setAccelerationInStepsPerSecondPerSecond(float accelerationInStepsPerSecondPerSecond)
+
+
+
+
+//
+// home the motor by moving until the homing sensor is activated, then set the position to zero
+// with units in steps
+//  Enter:  directionTowardHome = 1 to move in a positive direction, -1 to move in a negative directions 
+//          speedInStepsPerSecond = speed to accelerate up to while moving toward home, units in steps/second
+//          maxDistanceToMoveInSteps = unsigned maximum distance to move toward home before giving up
+//          homeSwitchPin = pin number of the home switch, switch should be configured to go low when at home
+//  Exit:   true returned if successful, else false
+//
+bool SpeedyStepper::moveToHomeInSteps(long directionTowardHome, float speedInStepsPerSecond, 
+  long maxDistanceToMoveInSteps, int homeLimitSwitchPin)
+
+
+
+//
+// move relative to the current position, units are in steps, this function does not return
+// until the move is complete
+//  Enter:  distanceToMoveInSteps = signed distance to move relative to the current position 
+//          in steps
+//
+void SpeedyStepper::moveRelativeInSteps(long distanceToMoveInSteps)
+
+
+
+
+//
+// setup a move relative to the current position, units are in steps, no motion occurs until 
+// processMove() is called
+// Note: this can only be called when the motor is stopped
+//  Enter:  distanceToMoveInSteps = signed distance to move relative to the current position 
+//          in steps
+//
+void SpeedyStepper::setupRelativeMoveInSteps(long distanceToMoveInSteps)
+
+
+
+//
+// move to the given absolute position, units are in steps, this function does not return
+// until the move is complete
+//  Enter:  absolutePositionToMoveToInSteps = signed absolute position to move to in units 
+//          of steps
+//
+void SpeedyStepper::moveToPositionInSteps(long absolutePositionToMoveToInSteps)
+
+
+
+//
+// setup a move, units are in steps, no motion occurs until processMove() is called
+// Note: this can only be called when the motor is stopped
+//  Enter:  absolutePositionToMoveToInSteps = signed absolute position to move to in 
+//          units of steps
+//
+void SpeedyStepper::setupMoveInSteps(long absolutePositionToMoveToInSteps)
+
+
+
+//
+// Get the current velocity of the motor in steps/second.  This functions is updated
+// while it accelerates up and down in speed.  This is not the desired speed, but the 
+// speed the motor should be moving at the time the function is called.  This is a 
+// signed value and is negative when the motor is moving backwards.
+// Note: This speed will be incorrect if the desired velocity is set faster than
+// this library can generate steps, or if the load on the motor is too great for
+// the amount of torque that it can generate.
+//  Exit:  velocity speed in steps per second returned, signed
+//
+float SpeedyStepper::getCurrentVelocityInStepsPerSecond()
+
+
+
+
+//
+// check if the motor has competed its move to the target position
+//  Exit:  true returned if the stepper is at the target position
+//
+bool SpeedyStepper::motionComplete()
+
+
+
+// -------------------------------------- End --------------------------------------
+
