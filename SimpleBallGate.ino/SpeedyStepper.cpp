@@ -1,4 +1,5 @@
-
+#pragma ONCE
+#include "Utilities.h"
 //      ******************************************************************
 //      *                                                                *
 //      *                          SpeedStepper                          *
@@ -994,6 +995,8 @@ bool SpeedyStepper::processMovement(void)
   //
   if (startNewMove)
   {    
+    if (checkButton())
+      return(false);
     ramp_LastStepTime_InUS = micros();
     startNewMove = false;
   }
@@ -1027,6 +1030,8 @@ bool SpeedyStepper::processMovement(void)
   //
   // execute the step on the rising edge
   //
+  if (checkButton())
+      return(false);
   digitalWrite(stepPin, HIGH);
   delayMicroseconds(2);        // set to almost nothing because there is so much code between rising and falling edges
   
@@ -1035,7 +1040,8 @@ bool SpeedyStepper::processMovement(void)
   //
   currentPosition_InSteps += direction_Scaler;
   currentStepPeriod_InUS = ramp_NextStepPeriod_InUS;
-
+  if (checkButton())
+      return(false);
 
   //
   // compute the period for the next step
@@ -1075,6 +1081,109 @@ bool SpeedyStepper::processMovement(void)
   return(false);
 }
 
+//bool processMovement(void)
+//{ 
+//  unsigned long currentTime_InUS;
+//  unsigned long periodSinceLastStep_InUS;
+//  long distanceToTarget_InSteps;
+//
+//  //
+//  // check if already at the target position
+//  //
+//  if (currentPosition_InSteps == targetPosition_InSteps)
+//    return(true);
+//
+//  //
+//  // check if this is the first call to start this new move
+//  //
+//  if (startNewMove)
+//  {    
+//    if (digitalRead(54))
+//      return(false);
+//    ramp_LastStepTime_InUS = micros();
+//    startNewMove = false;
+//  }
+//    
+//  //
+//  // determine how much time has elapsed since the last step (Note 1: this method works  
+//  // even if the time has wrapped. Note 2: all variables must be unsigned)
+//  //
+//  currentTime_InUS = micros();
+//  periodSinceLastStep_InUS = currentTime_InUS - ramp_LastStepTime_InUS;
+//
+//  //
+//  // if it is not time for the next step, return
+//  //
+//  if (periodSinceLastStep_InUS < (unsigned long) ramp_NextStepPeriod_InUS)
+//    return(false);
+//
+//  //
+//  // determine the distance from the current position to the target
+//  //
+//  distanceToTarget_InSteps = targetPosition_InSteps - currentPosition_InSteps;
+//  if (distanceToTarget_InSteps < 0) 
+//    distanceToTarget_InSteps = -distanceToTarget_InSteps;
+//
+//  //
+//  // test if it is time to start decelerating, if so change from accelerating to decelerating
+//  //
+//  if (distanceToTarget_InSteps == decelerationDistance_InSteps)
+//    acceleration_InStepsPerUSPerUS = -acceleration_InStepsPerUSPerUS;
+//  
+//  //
+//  // execute the step on the rising edge
+//  //
+//  if (digitalRead(54))
+//      return(false);
+//  digitalWrite(stepPin, HIGH);
+//  delayMicroseconds(2);        // set to almost nothing because there is so much code between rising and falling edges
+//  
+//  //
+//  // update the current position and speed
+//  //
+//  currentPosition_InSteps += direction_Scaler;
+//  currentStepPeriod_InUS = ramp_NextStepPeriod_InUS;
+//  if (digitalRead(54))
+//      return(false);
+//
+//  //
+//  // compute the period for the next step
+//  // StepPeriodInUS = LastStepPeriodInUS * (1 - AccelerationInStepsPerUSPerUS * LastStepPeriodInUS^2)
+//  //
+//  ramp_NextStepPeriod_InUS = ramp_NextStepPeriod_InUS * (1.0 - acceleration_InStepsPerUSPerUS * ramp_NextStepPeriod_InUS * ramp_NextStepPeriod_InUS);
+//
+//
+//  //
+//  // return the step line high
+//  //
+//  digitalWrite(stepPin, LOW);
+// 
+// 
+//  //
+//  // clip the speed so that it does not accelerate beyond the desired velocity
+//  //
+//  if (ramp_NextStepPeriod_InUS < desiredStepPeriod_InUS)
+//    ramp_NextStepPeriod_InUS = desiredStepPeriod_InUS;
+//
+//
+//  //
+//  // update the acceleration ramp
+//  //
+//  ramp_LastStepTime_InUS = currentTime_InUS;
+// 
+// 
+//  //
+//  // check if the move has reached its final target position, return true if all done
+//  //
+//  if (currentPosition_InSteps == targetPosition_InSteps)
+//  {
+//    currentStepPeriod_InUS = 0.0;
+//    return(true);
+//  }
+//    
+//  return(false);
+//}
+//
 
 
 //
@@ -1115,4 +1224,3 @@ bool SpeedyStepper::motionComplete()
 }
 
 // -------------------------------------- End --------------------------------------
-

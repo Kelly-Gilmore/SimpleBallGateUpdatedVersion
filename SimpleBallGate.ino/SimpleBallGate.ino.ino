@@ -1,10 +1,11 @@
-
+#pragma ONCE
 
 //I don't know that the pot knob works to adjust rate so I need to figure out a way to check that; but for now at least it will upload and function sooo
 
 #include <Arduino.h>
 #include "SpeedyStepper.h"
 #include "State.h"
+#include "Utilities.h"
 
 //Button definition
 #define BG1_BUTTON 54
@@ -31,7 +32,6 @@
 SpeedyStepper gateStepper;
 // byte stepperPort;
 States state;  // lastState;
-bool buttonEvent;
 bool moveFinished = true;
 bool currentlyRunning = false;
 byte ballInSensor = BG1_BallInSensor;
@@ -49,7 +49,7 @@ long potVal, potHome;
 long potMinVal = 0;
 long potMaxVal = 0;
 
-void checkButton();
+bool checkButton();
 
 // potStartTime = millis();
 
@@ -309,8 +309,9 @@ bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPe
     gateStepper.setSpeedInRevolutionsPerSecond(speedInRevolutionsPerSecond);
     gateStepper.setupRelativeMoveInRevolutions(maxDistanceToMoveInRevolutions * directionTowardHome);
     limitSwitchFlag = false;
-    while(!gateStepper.processMovement() || digitalRead(54))
+    while(!gateStepper.processMovement() || buttonEvent)
     {
+      checkButton();
       if (digitalRead(homeLimitSwitchPin) == LOW)
       {
         delay(1);
@@ -319,6 +320,7 @@ bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPe
           delay(80);                // allow time for the switch to debounce
           limitSwitchFlag = true;
           break;
+          checkButton();
         }
       }
     }
@@ -336,8 +338,9 @@ bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPe
   //
   gateStepper.setupRelativeMoveInRevolutions(maxDistanceToMoveInRevolutions * directionTowardHome * -1);
   limitSwitchFlag = false;
-  while(!gateStepper.processMovement() || digitalRead(54))
+  while(!gateStepper.processMovement() || buttonEvent)
   {
+    checkButton();
     if (digitalRead(homeLimitSwitchPin) == HIGH)
     {
       delay(1);
@@ -346,6 +349,7 @@ bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPe
         delay(80);                // allow time for the switch to debounce
         limitSwitchFlag = true;
         break;
+        checkButton();
       }
     }
   }
@@ -363,8 +367,9 @@ bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPe
   gateStepper.setSpeedInRevolutionsPerSecond(speedInRevolutionsPerSecond/8);
   gateStepper.setupRelativeMoveInRevolutions(maxDistanceToMoveInRevolutions * directionTowardHome);
   limitSwitchFlag = false;
-  while(!gateStepper.processMovement() || digitalRead(54))
+  while(!gateStepper.processMovement() || buttonEvent)
   {
+    checkButton();
     if (digitalRead(homeLimitSwitchPin) == LOW)
     {
       delay(1);
@@ -373,6 +378,7 @@ bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPe
         delay(80);                // allow time for the switch to debounce
         limitSwitchFlag = true;
         break;
+        checkButton();
       }
     }
   }
@@ -399,6 +405,8 @@ bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPe
   }
 */
 }
+
+
 
 void homeGate() {
   // digitalWrite(55, LOW);
@@ -474,16 +482,7 @@ void pleaseWork() { //convert readPot value into a decimal so that MoveToHomeInR
 //Button Functions Below
 
 
-void checkButton() { //this is going to be called in another function
-  //  if (((millis() - buttonStartTime) > 10) && moveFinished) { //If the (curent time) - (last button pressed start time) is greater than 10ms & the ball gate is not in rotation
-  if (!readColorButton()) { //If the button has been pressed
-    buttonEvent = true;
-  } else {
-    buttonEvent = false;
-  }
-  //  buttonStartTime = millis();
-  return;
-}
+
 
 
 byte readColorButton() { //Read the button to get its current press state, LOW = pressed
