@@ -32,6 +32,7 @@
 SpeedyStepper gateStepper;
 // byte stepperPort;
 States state;  // lastState;
+bool buttonEvent = false;
 bool moveFinished = true;
 bool currentlyRunning = false;
 byte ballInSensor = BG1_BallInSensor;
@@ -66,6 +67,7 @@ void setup() {
   pinMode(redPin, OUTPUT);
   pinMode(greenPin, OUTPUT);
   pinMode(bluePin, OUTPUT);
+  attachInterrupt(digitalPinToInterrupt(21), buttonPressedEvent, FALLING);
   gateStepper.connectToPort(1);
   gateStepper.setStepsPerRevolution(1036 * 8);
   gateStepper.setSpeedInRevolutionsPerSecond(.2);
@@ -106,9 +108,30 @@ void loop() {
   */
 }
 
+void buttonPressedEvent(){
+  Serial.println("Entered buttonEvent");
+  static unsigned long last_interrupt_time = 0;
+  unsigned long interrupt_time = millis();
+  if(interrupt_time - last_interrupt_time > 1000){
+  buttonEvent = !buttonEvent;
+  last_interrupt_time = millis();
+  }
+  Serial.print("buttonEventVal: ");
+  Serial.println(buttonEvent);
+}
+
+bool checkButton() { //this is going to be called in another function
+  if (!digitalRead(21)) { //If the button has been pressed
+    buttonEvent = true;
+  } else {
+    buttonEvent = false;
+  }
+  //  buttonStartTime = millis();
+  return buttonEvent;
+}
+
 void setState() {
 //  Serial.println("begin setState");
-  checkButton();
   if (buttonEvent) {
     setStatus();
     if (!currentlyRunning) {
@@ -140,6 +163,7 @@ void setStatus() {
   if (buttonEvent) {
     currentlyRunning = !currentlyRunning;
 //    Serial.println(currentlyRunning);
+    buttonEvent = false;
     return;
   }
 }
@@ -151,7 +175,9 @@ void updateGate() {
     case (ROTATING) :
 //      Serial.println("ROTATING");
       greenLight();
+      if(!buttonEvent){
       rotateGate();
+      }
  //     Serial.println("done");
       setState();
       break;
@@ -309,9 +335,9 @@ bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPe
     gateStepper.setSpeedInRevolutionsPerSecond(speedInRevolutionsPerSecond);
     gateStepper.setupRelativeMoveInRevolutions(maxDistanceToMoveInRevolutions * directionTowardHome);
     limitSwitchFlag = false;
-    while(!gateStepper.processMovement() || buttonEvent)
+    while(!gateStepper.processMovement() || !buttonEvent)
     {
-      checkButton();
+      
       if (digitalRead(homeLimitSwitchPin) == LOW)
       {
         delay(1);
@@ -320,7 +346,7 @@ bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPe
           delay(80);                // allow time for the switch to debounce
           limitSwitchFlag = true;
           break;
-          checkButton();
+
         }
       }
     }
@@ -338,9 +364,9 @@ bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPe
   //
   gateStepper.setupRelativeMoveInRevolutions(maxDistanceToMoveInRevolutions * directionTowardHome * -1);
   limitSwitchFlag = false;
-  while(!gateStepper.processMovement() || buttonEvent)
+  while(!gateStepper.processMovement() || !buttonEvent)
   {
-    checkButton();
+
     if (digitalRead(homeLimitSwitchPin) == HIGH)
     {
       delay(1);
@@ -349,7 +375,7 @@ bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPe
         delay(80);                // allow time for the switch to debounce
         limitSwitchFlag = true;
         break;
-        checkButton();
+
       }
     }
   }
@@ -367,9 +393,9 @@ bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPe
   gateStepper.setSpeedInRevolutionsPerSecond(speedInRevolutionsPerSecond/8);
   gateStepper.setupRelativeMoveInRevolutions(maxDistanceToMoveInRevolutions * directionTowardHome);
   limitSwitchFlag = false;
-  while(!gateStepper.processMovement() || buttonEvent)
+  while(!gateStepper.processMovement() || !buttonEvent)
   {
-    checkButton();
+
     if (digitalRead(homeLimitSwitchPin) == LOW)
     {
       delay(1);
@@ -378,7 +404,7 @@ bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPe
         delay(80);                // allow time for the switch to debounce
         limitSwitchFlag = true;
         break;
-        checkButton();
+
       }
     }
   }

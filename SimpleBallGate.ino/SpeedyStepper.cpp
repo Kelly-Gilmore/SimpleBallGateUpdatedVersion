@@ -995,8 +995,6 @@ bool SpeedyStepper::processMovement(void)
   //
   if (startNewMove)
   {    
-    if (checkButton())
-      return(false);
     ramp_LastStepTime_InUS = micros();
     startNewMove = false;
   }
@@ -1030,8 +1028,6 @@ bool SpeedyStepper::processMovement(void)
   //
   // execute the step on the rising edge
   //
-  if (checkButton())
-      return(false);
   digitalWrite(stepPin, HIGH);
   delayMicroseconds(2);        // set to almost nothing because there is so much code between rising and falling edges
   
@@ -1040,8 +1036,7 @@ bool SpeedyStepper::processMovement(void)
   //
   currentPosition_InSteps += direction_Scaler;
   currentStepPeriod_InUS = ramp_NextStepPeriod_InUS;
-  if (checkButton())
-      return(false);
+
 
   //
   // compute the period for the next step
@@ -1080,6 +1075,7 @@ bool SpeedyStepper::processMovement(void)
     
   return(false);
 }
+
 
 //bool processMovement(void)
 //{ 
