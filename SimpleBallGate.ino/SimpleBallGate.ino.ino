@@ -1,6 +1,5 @@
 #pragma ONCE
 
-//I don't know that the pot knob works to adjust rate so I need to figure out a way to check that; but for now at least it will upload and function sooo
 
 #include <Arduino.h>
 #include "SpeedyStepper.h"
@@ -23,7 +22,7 @@
 
 
 //Potentiometer definition
-#define BG1_POT 7
+#define BG1_POT A7
 
 #define INTERMITTENT_MIN 4000
 #define INTERMITTENT_MAX 8000
@@ -53,16 +52,10 @@ long potMaxVal = 0;
 
 bool checkButton();
 
-// potStartTime = millis();
-
-// potMinVal = 0;
-// potMaxVal = 0;
 
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(9600);
-  // pinMode(55, OUTPUT);
-  // pinMode(56, OUTPUT);
   pinMode(potPin, INPUT);
   pinMode(buttonPin, INPUT_PULLUP);
   pinMode(redPin, OUTPUT);
@@ -73,42 +66,17 @@ void setup() {
   gateStepper.setStepsPerRevolution(1036 * 8);
   gateStepper.setSpeedInRevolutionsPerSecond(.2);
   gateStepper.setAccelerationInRevolutionsPerSecondPerSecond(.5);
-  //  initializePot();
   gateStepper.enableStepper();
   gateStepper.moveToHomeInRevolutions(-1, .125, 1, 23); //rateVal
   gateStepper.disableStepper();
-  // Serial.println("Initial Homing Complete");
 }
 
 void loop() {
-  //  checkButton();
-  //  if(buttonEvent && !stillRunning) { // if there has been a button event and the gate is not rotating then turn the light green and rotate the gate
-  //    greenLight();
-  //    rotateGate();
-  //    checkButton();
-  //   }
-  //  if (buttonEvent && stillRunning) { // If there has been a button event and the gate is running then turn the light red
-  //    redLight();
-  //  }
-  //  }
 
 
   updateGate();
-
-
-  /*  checkButton();
-    setStatus();
-    if(buttonEvent && !stillRunning) {
-      greenLight();
-      rotateGate();
-    }
-    if(buttonEvent && stillRunning) {
-      redLight();
-    }
-
-  */
 }
-
+ 
 void buttonPressedEvent() {
   Serial.println("Entered buttonEvent");
   static unsigned long last_interrupt_time = 0;
@@ -127,12 +95,10 @@ bool checkButton() { //this is going to be called in another function
   } else {
     buttonEvent = false;
   }
-  //  buttonStartTime = millis();
   return buttonEvent;
 }
 
 void setState() {
-  //  Serial.println("begin setState");
   if (buttonEvent) {
     setStatus();
     if (!currentlyRunning) {
@@ -142,18 +108,7 @@ void setState() {
       state = RESTING;
     }
   }
-  //  Serial.println("end setState");
 }
-
-
-/* if (buttonEvent && !currentlyRunning) {  This is what I initially had for setState();
-    state = ROTATING;
-  //    lastState = ROTATING;
-  }
-  else if (buttonEvent && currentlyRunning) {
-    state = RESTING;
-  //    lastState = RESTING;
-*/
 
 States getState() {
   Serial.println  (state);
@@ -163,7 +118,6 @@ States getState() {
 void setStatus() {
   if (buttonEvent) {
     currentlyRunning = !currentlyRunning;
-    //    Serial.println(currentlyRunning);
     buttonEvent = false;
     return;
   }
@@ -174,14 +128,12 @@ void updateGate() {
   switch (getState()) {
 
     case (ROTATING) :
-      //      Serial.println("ROTATING");
       greenLight();
-      if (!buttonEvent && checkOpticalSensor()) {
+      if (!buttonEvent && checkOpticalSensor()) {   // && checkOpticalSensor() for flashing
         rotateGate();
       }
       else
         flashGreen();
-      //     Serial.println("done");
       setState();
       break;
 
@@ -191,8 +143,6 @@ void updateGate() {
       setState();
       break;
   }
-  //  checkButton();
-  //    setState();
 
 }
 
@@ -202,20 +152,10 @@ void updateGate() {
 bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPerSecond,
                             long maxDistanceToMoveInRevolutions, int homeLimitSwitchPin)
 {
-  //  float originalDesiredSpeed_InStepsPerSecond;
   bool limitSwitchFlag;
 
 
-  //
-  // setup the home switch input pin
-  //
   pinMode(homeLimitSwitchPin, INPUT_PULLUP);
-
-
-  //
-  // remember the current speed setting
-  //
-  //  originalDesiredSpeed_InStepsPerSecond = desiredSpeed_InStepsPerSecond;
 
 
   //
@@ -316,30 +256,23 @@ bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPe
   gateStepper.setCurrentPositionInRevolutions(0L);
 
 
-  /* void setupRelativeMoveInRevolutions(float distanceToMoveInRevolutions) {
-    setupRelativeMoveInSteps((long) round(distanceToMoveInRevolutions * stepsPerRevolution));
-    }
 
-    void setSpeedInRevolutionsPerSecond(float speedInRevolutionsPerSecond) {
-    desiredSpeed_InStepsPerSecond = speedInRevolutionsPerSecond * stepsPerRevolution;
-    }
-  */
 }
 
 
 
 void homeGate() {
-  // digitalWrite(55, LOW);
   calculateRate();
   gateStepper.enableStepper();  
   moveToHomeInRevNoBlock(-1, rateVal, 1, 23); //rateVal
   gateStepper.disableStepper();
-  // digitalWrite(55, HIGH);
 }
 
 void rotateGate() {
   gateStepper.enableStepper();
-  gateStepper.moveRelativeInRevolutions(-.04); //moves the homing screw off the homing sensor
+  gateStepper.setSpeedInRevolutionsPerSecond(5);
+  gateStepper.setAccelerationInRevolutionsPerSecondPerSecond(7);
+  gateStepper.moveRelativeInRevolutions(-.024); //moves the homing screw off the homing sensor
   homeGate();
   gateStepper.disableStepper();
 }
@@ -361,10 +294,6 @@ void calculateRate() {
 
 
 void minimizePot() { //used to be maximizePot
-  /*potHome = readPot();
-    potMinVal = potHome;
-    potMaxVal = potMinVal + 320;
-  */
   readVal = 50; //50 is the minimum value that the gate can rotate at
   return;
 }
@@ -376,34 +305,16 @@ void maximizePot() {
 
 
 
-
-/*void setPotMinVal(byte minVal) {
-  potMinVal = minVal;
-  }
-
-  void setPotMaxVal(byte maxVal){
-  potMaxVal = maxVal;
-  }
-*/
-
 long readPot() {
   return analogRead(potPin);
 }
 
 void pleaseWork() { //convert readPot value into a decimal so that MoveToHomeInReovlutions can actually use the value
   readVal = readPot();
-  //  Serial.println("readVal: ");
-  //  Serial.println(readVal);
   rateVal = readVal / 1000;
   Serial.print("rateVal: ");
   Serial.println(rateVal);
-}
-
-//Button Functions Below
-
-
-
-
+} 
 
 byte readColorButton() { //Read the button to get its current press state, LOW = pressed
   return digitalRead(buttonPin);
