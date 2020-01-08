@@ -5,7 +5,8 @@
 #include <Arduino.h>
 #include "SpeedyStepper.h"
 #include "State.h"
-#include "Utilities.h"
+
+#define DEBOUNCE_TIME 300
 
 //Button definition
 #define BG1_BUTTON 54
@@ -108,13 +109,13 @@ void loop() {
   */
 }
 
-void buttonPressedEvent(){
+void buttonPressedEvent() {
   Serial.println("Entered buttonEvent");
   static unsigned long last_interrupt_time = 0;
   unsigned long interrupt_time = millis();
-  if(interrupt_time - last_interrupt_time > 1000){
-  buttonEvent = !buttonEvent;
-  last_interrupt_time = millis();
+  if (interrupt_time - last_interrupt_time > DEBOUNCE_TIME) {
+    buttonEvent = !buttonEvent;
+    last_interrupt_time = millis();
   }
   Serial.print("buttonEventVal: ");
   Serial.println(buttonEvent);
@@ -131,7 +132,7 @@ bool checkButton() { //this is going to be called in another function
 }
 
 void setState() {
-//  Serial.println("begin setState");
+  //  Serial.println("begin setState");
   if (buttonEvent) {
     setStatus();
     if (!currentlyRunning) {
@@ -141,7 +142,7 @@ void setState() {
       state = RESTING;
     }
   }
-//  Serial.println("end setState");
+  //  Serial.println("end setState");
 }
 
 
@@ -162,7 +163,7 @@ States getState() {
 void setStatus() {
   if (buttonEvent) {
     currentlyRunning = !currentlyRunning;
-//    Serial.println(currentlyRunning);
+    //    Serial.println(currentlyRunning);
     buttonEvent = false;
     return;
   }
@@ -173,12 +174,14 @@ void updateGate() {
   switch (getState()) {
 
     case (ROTATING) :
-//      Serial.println("ROTATING");
+      //      Serial.println("ROTATING");
       greenLight();
-      if(!buttonEvent){
-      rotateGate();
+      if (!buttonEvent && checkOpticalSensor()) {
+        rotateGate();
       }
- //     Serial.println("done");
+      else
+        flashGreen();
+      //     Serial.println("done");
       setState();
       break;
 
@@ -193,137 +196,28 @@ void updateGate() {
 
 }
 
-///* void moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPerSecond, long maxDistanceToMoveInRevolutions, int homeLimitSwitchPin = 23) { //(-1, rateVal, 1, 23)
-//  float originalDesiredSpeed_InStepsPerSecond;
-//  bool limitSwitchFlag;
-//
-//  // setup the home switch input pin
-//
-//  pinMode(homeLimitSwitchPin, INPUT_PULLUP);
-//
-//  // setting speed for desired speed in steps per second
-//
-//  //  int desiredSpeed_InStepsPerSecond = 200.0;  ---> don't think I need this, using revolutions not steps
-//
-//  // remember the current speed setting
-//
-//  //  originalDesiredSpeed_InStepsPerSecond = desiredSpeed_InStepsPerSecond;  ---> don't think I need this, using revolutions not steps
-//
-//  // if the home switch is not already set, move toward it
-//  Serial.print("TEST: ");
-//  Serial.println(digitalRead(homeLimitSwitchPin));
-//  if (digitalRead(homeLimitSwitchPin) == HIGH) {              //loop #1
-//    Serial.println("Started loop#1");
-//    Serial.print("homeLimitSwitchVal: ");
-//    Serial.println(digitalRead(homeLimitSwitchPin));
-//    // move toward the home switch
-//
-//    gateStepper.setSpeedInRevolutionsPerSecond(speedInRevolutionsPerSecond);  //should be using the value of rateVal
-//    gateStepper.setupRelativeMoveInRevolutions(maxDistanceToMoveInRevolutions * directionTowardHome);  //should be 1 * -1 = -1
-//    limitSwitchFlag = false;
-//
-//    Serial.print("limitSwitchFlagVal: ");
-//    Serial.println(limitSwitchFlag);
-//    if (digitalRead(homeLimitSwitchPin) == HIGH) {         //loop #1.5
-//      Serial.println("Started loop #1.5");
-//      gateStepper.processMovement();
-//      delay(1);
-//      if (digitalRead(homeLimitSwitchPin) == LOW) {   //loop 1.75
-//        Serial.println("reached loop 1.75");
-//        gateStepper.processMovement();
-//        delay(80);                                           // allow time for the switch to debounce
-//        limitSwitchFlag = true;
-//        return;
-//      }
-//      Serial.println("Passed loop #1.5");
-//    }
-//
-//    // check if switch never detected
-//    Serial.println("loop #1.8");
-//    if (limitSwitchFlag == false)
-//      Serial.println("entered loop #1.9");
-////    return (false);
-//    Serial.println("didn't return (false)");
-//    Serial.println("Passed loop #1");
-//  }
-//  
-//  // the switch has been detected, now move away from the switch
-//
-//  gateStepper.setupRelativeMoveInRevolutions(maxDistanceToMoveInRevolutions * directionTowardHome * -1);
-//  limitSwitchFlag = false;
-//
-//  if (digitalRead(homeLimitSwitchPin) == HIGH) {        //loop #2
-//    Serial.println("Started loop #2");
-//    gateStepper.processMovement();
-//    delay(1);
-//    if (digitalRead(homeLimitSwitchPin) == HIGH) {
-//      gateStepper.processMovement();
-//      delay(80);                                              // allow time for the switch to debounce
-//      limitSwitchFlag = true;
-//      return;
-//    }
-//    Serial.println("Passed loop #2");
-//  }
-//
-//  // check if switch never detected
-//
-///*  if (limitSwitchFlag == false)
-//    return (false);
-//*/
-//  // have now moved off the switch, move toward it again but slower
-//
-//  gateStepper.setSpeedInRevolutionsPerSecond(speedInRevolutionsPerSecond / 8);
-//  gateStepper.setupRelativeMoveInRevolutions(maxDistanceToMoveInRevolutions * directionTowardHome);
-//  limitSwitchFlag = false;
-//  Serial.println("Testing for entry into loop #3");
-//  if (digitalRead(homeLimitSwitchPin) == LOW) {         //loop #3
-//    Serial.println("Started loop #3");
-//    gateStepper.processMovement();
-//    delay(1);
-//    if (digitalRead(homeLimitSwitchPin) == LOW) {
-//      gateStepper.processMovement();
-//      delay(80);                                              // allow time for the switch to debounce
-//      limitSwitchFlag = true;
-//      return;
-//    }
-//  }
-//
-//  // check if switch never detected
-//
-//  if (limitSwitchFlag == false)
-//    return (false);
-//
-//  // successfully homed, set the current position to 0
-//
-//  gateStepper.setCurrentPositionInRevolutions(0L);
-//
-//  // restore original velocity
-//
-//  gateStepper.setSpeedInRevolutionsPerSecond(originalDesiredSpeed_InStepsPerSecond);
-//  return (true);
-//
-//}
 
 
-bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPerSecond, 
-  long maxDistanceToMoveInRevolutions, int homeLimitSwitchPin)
+
+bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPerSecond,
+                            long maxDistanceToMoveInRevolutions, int homeLimitSwitchPin)
 {
-//  float originalDesiredSpeed_InStepsPerSecond;
+  //  float originalDesiredSpeed_InStepsPerSecond;
   bool limitSwitchFlag;
-  
-  
+
+
   //
   // setup the home switch input pin
   //
   pinMode(homeLimitSwitchPin, INPUT_PULLUP);
-  
-  
+
+
   //
   // remember the current speed setting
   //
-//  originalDesiredSpeed_InStepsPerSecond = desiredSpeed_InStepsPerSecond; 
- 
- 
+  //  originalDesiredSpeed_InStepsPerSecond = desiredSpeed_InStepsPerSecond;
+
+
   //
   // if the home switch is not already set, move toward it
   //
@@ -335,9 +229,9 @@ bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPe
     gateStepper.setSpeedInRevolutionsPerSecond(speedInRevolutionsPerSecond);
     gateStepper.setupRelativeMoveInRevolutions(maxDistanceToMoveInRevolutions * directionTowardHome);
     limitSwitchFlag = false;
-    while(!gateStepper.processMovement() || !buttonEvent)
+    while (!gateStepper.processMovement())
     {
-      
+
       if (digitalRead(homeLimitSwitchPin) == LOW)
       {
         delay(1);
@@ -350,12 +244,12 @@ bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPe
         }
       }
     }
-    
+
     //
     // check if switch never detected
     //
     if (limitSwitchFlag == false)
-      return(false);
+      return (false);
   }
 
 
@@ -364,7 +258,7 @@ bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPe
   //
   gateStepper.setupRelativeMoveInRevolutions(maxDistanceToMoveInRevolutions * directionTowardHome * -1);
   limitSwitchFlag = false;
-  while(!gateStepper.processMovement() || !buttonEvent)
+  while (!gateStepper.processMovement())
   {
 
     if (digitalRead(homeLimitSwitchPin) == HIGH)
@@ -379,28 +273,28 @@ bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPe
       }
     }
   }
-  
+
   //
   // check if switch never detected
   //
   if (limitSwitchFlag == false)
-    return(false);
+    return (false);
 
 
   //
   // have now moved off the switch, move toward it again but slower
   //
-  gateStepper.setSpeedInRevolutionsPerSecond(speedInRevolutionsPerSecond/8);
+  gateStepper.setSpeedInRevolutionsPerSecond(speedInRevolutionsPerSecond / 8);
   gateStepper.setupRelativeMoveInRevolutions(maxDistanceToMoveInRevolutions * directionTowardHome);
   limitSwitchFlag = false;
-  while(!gateStepper.processMovement() || !buttonEvent)
+  while (!gateStepper.processMovement())
   {
 
     if (digitalRead(homeLimitSwitchPin) == LOW)
     {
       delay(1);
       if (digitalRead(homeLimitSwitchPin) == LOW)
-      {    
+      {
         delay(80);                // allow time for the switch to debounce
         limitSwitchFlag = true;
         break;
@@ -408,28 +302,28 @@ bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPe
       }
     }
   }
-  
+
   //
   // check if switch never detected
   //
   if (limitSwitchFlag == false)
-    return(false);
+    return (false);
 
 
   //
   // successfully homed, set the current position to 0
   //
-  gateStepper.setCurrentPositionInRevolutions(0L);   
+  gateStepper.setCurrentPositionInRevolutions(0L);
 
 
-/* void setupRelativeMoveInRevolutions(float distanceToMoveInRevolutions) {
-  setupRelativeMoveInSteps((long) round(distanceToMoveInRevolutions * stepsPerRevolution));
-  }
+  /* void setupRelativeMoveInRevolutions(float distanceToMoveInRevolutions) {
+    setupRelativeMoveInSteps((long) round(distanceToMoveInRevolutions * stepsPerRevolution));
+    }
 
-  void setSpeedInRevolutionsPerSecond(float speedInRevolutionsPerSecond) {
-  desiredSpeed_InStepsPerSecond = speedInRevolutionsPerSecond * stepsPerRevolution;
-  }
-*/
+    void setSpeedInRevolutionsPerSecond(float speedInRevolutionsPerSecond) {
+    desiredSpeed_InStepsPerSecond = speedInRevolutionsPerSecond * stepsPerRevolution;
+    }
+  */
 }
 
 
@@ -437,7 +331,7 @@ bool moveToHomeInRevNoBlock(long directionTowardHome, float speedInRevolutionsPe
 void homeGate() {
   // digitalWrite(55, LOW);
   calculateRate();
-  gateStepper.enableStepper();
+  gateStepper.enableStepper();  
   moveToHomeInRevNoBlock(-1, rateVal, 1, 23); //rateVal
   gateStepper.disableStepper();
   // digitalWrite(55, HIGH);
@@ -531,4 +425,21 @@ void blueLight() {
   analogWrite(bluePin, 0);
   analogWrite(greenPin, 255);
   analogWrite(redPin, 255);
+}
+
+void turnOff() {
+  analogWrite(bluePin, 255);
+  analogWrite(greenPin, 255);
+  analogWrite(redPin, 255);
+}
+
+bool checkOpticalSensor() {
+  return digitalRead(24) == HIGH ? true : false;
+}
+
+void flashGreen() {
+  greenLight();
+  delay(500);
+  turnOff();
+  delay(500);
 }
